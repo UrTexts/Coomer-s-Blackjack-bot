@@ -11,7 +11,7 @@ intents.messages = True  # Enable message intents
 intents.guilds = True    # Enable guild-related events
 
 # Initialize the bot with intents
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='$', intents=intents)
 
 # Define card values
 card_values = {
