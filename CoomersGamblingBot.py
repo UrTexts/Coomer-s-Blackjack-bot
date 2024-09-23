@@ -1,10 +1,9 @@
 import discord
 from discord.ext import commands
 import random
-import os  # To load environment variables
 
-# Load token from an environment variable
-TOKEN = os.getenv('DISCORD_BOT_TOKEN')
+# Replace with your bot's token
+TOKEN = 'your_discord_bot_token'
 
 # Create intents
 intents = discord.Intents.default()
@@ -95,18 +94,18 @@ async def blackjack(ctx):
     current_streak = win_streaks.get(player_id, 0)
     await ctx.send(f"{ctx.author.mention}, your current win streak: {current_streak}")
 
-
 # Terms of Service command
 @bot.command()
 async def terms(ctx):
-    await ctx.send("You can view our Terms of Service here: https://docs.google.com/document/d/1C5Ugwgu7rhKRh613BHeSUem_XH8B5iakSphVNnCBlLs/pub")
+    await ctx.send("You can view our Terms of Service here: [Your ToS Link]")
 
+# Privacy Policy command
+@bot.command()
+async def privacy(ctx):
+    await ctx.send("You can view our Privacy Policy here: https://docs.google.com/document/d/1EaQ8u65wdOtNBRHH79gh0IyEtrPNs_OAbyp7PMo5pZ0/pub")
 
-# Bot ready event
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user.name}')
 
-
-# Run the bot with the token
 bot.run(TOKEN)
