@@ -97,7 +97,7 @@ async def blackjack(ctx):
 # Terms of Service command
 @bot.command()
 async def terms(ctx):
-    await ctx.send("You can view our Terms of Service here: [Your ToS Link]")
+    await ctx.send("You can view our Terms of Service here: https://docs.google.com/document/d/1C5Ugwgu7rhKRh613BHeSUem_XH8B5iakSphVNnCBlLs/edit?pli=1")
 
 # Privacy Policy command
 @bot.command()
