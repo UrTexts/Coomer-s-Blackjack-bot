@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timedelta
 
 # Replace with your bot's token
-Token = 'YOURTOKEN'  # Make sure to replace this with your actual bot token
+Token = 'your token'  # Replace with your actual bot token
 
 # Create intents
 intents = discord.Intents.default()
@@ -71,10 +71,10 @@ async def daily(ctx):
     # Check if the user can claim daily reward
     if last_daily is None or now - datetime.fromisoformat(last_daily) >= timedelta(days=1):
         amount = 100  # Amount to give for daily
-        new_balance = adjust_balance(user_id, amount)
+        adjust_balance(user_id, amount)
         balances[user_id]["last_daily"] = now.isoformat()  # Store last_daily as ISO format string
         save_balances(balances)
-        await ctx.send(f"{ctx.author.mention}, you received your daily reward of {amount} coins! Your new balance is: {new_balance} coins.")
+        await ctx.send(f"{ctx.author.mention}, you received your daily reward of {amount} coins!")
     else:
         time_left = 24 - (now - datetime.fromisoformat(last_daily)).seconds // 3600
         await ctx.send(f"{ctx.author.mention}, you can claim your daily reward again in {time_left} hours.")
@@ -94,7 +94,7 @@ async def blackjack(ctx, bet: int = None):
         await ctx.send(f"{ctx.author.mention}, you don't have enough coins to place this bet!")
         return
 
-    # Deduct the bet amount
+    # Deduct the bet amount from the user's balance
     balances[user_id]["balance"] -= bet
     save_balances(balances)
 
@@ -169,6 +169,9 @@ async def blackjack(ctx, bet: int = None):
         save_balances(balances)
         await ctx.send(f"{ctx.author.mention}, it's a tie! Your bet has been refunded.")
 
+    # Save the updated balances after the game ends
+    save_balances(balances)
+
 # Admin command to give money
 @bot.command()
 async def give(ctx, user: discord.User, amount: int):
@@ -195,9 +198,31 @@ async def leaderboard(ctx):
     leaderboard_message = "**Leaderboard**\n\n"
     for i, (user_id, data) in enumerate(sorted_leaderboard[:10], 1):
         user = await bot.fetch_user(user_id)
-        leaderboard_message += f"{i}. {user.name} - {data['balance']} coins\n"
+        leaderboard_message += f"{i}. {user.name} - {data['balance']} coin(s)\n"
 
     await ctx.send(leaderboard_message)
 
+# Terms command
+@bot.command()
+async def terms(ctx):
+    terms_text = (
+        "By using this bot, you agree to the following terms:\n"
+        "1. Be respectful to other users.\n"
+        "2. No spamming or flooding the chat.\n"
+        "3. Follow Discord's community guidelines.\n"
+        "4. The bot owner reserves the right to modify these terms at any time."
+    )
+    await ctx.send(terms_text)
+
+# Privacy command
+@bot.command()
+async def privacy(ctx):
+    privacy_text = (
+        "Your privacy is important to us. Here are our privacy policies:\n"
+        "1. We do not collect personal information without your consent.\n"
+        "2. Any data collected is used solely for the purpose of providing bot services.\n"
+        "3. We do not share your information with third parties."
+    )
 # Run the bot
+
 bot.run(Token)
