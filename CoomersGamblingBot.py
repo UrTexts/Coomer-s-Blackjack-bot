@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timedelta
 
 # Replace with your bot's token
-Token = 'YOURTOKEN'  # Make sure to replace this with your actual token
+Token = 'YOURTOKEN'  # Make sure to replace this with your actual bot token
 
 # Create intents
 intents = discord.Intents.default()
@@ -24,12 +24,8 @@ BALANCES_FILE = os.path.join(os.path.dirname(__file__), "balances.json")
 def load_balances():
     if not os.path.exists(BALANCES_FILE):
         return {}
-    try:
-        with open(BALANCES_FILE, 'r') as file:
-            return json.load(file)
-    except json.JSONDecodeError as e:
-        print(f"Error decoding JSON: {e}")
-        return {}  # Return an empty dictionary if there's an error
+    with open(BALANCES_FILE, 'r') as file:
+        return json.load(file)
 
 # Function to save balances to JSON file
 def save_balances(balances):
@@ -75,10 +71,10 @@ async def daily(ctx):
     # Check if the user can claim daily reward
     if last_daily is None or now - datetime.fromisoformat(last_daily) >= timedelta(days=1):
         amount = 100  # Amount to give for daily
-        adjust_balance(user_id, amount)
+        new_balance = adjust_balance(user_id, amount)
         balances[user_id]["last_daily"] = now.isoformat()  # Store last_daily as ISO format string
         save_balances(balances)
-        await ctx.send(f"{ctx.author.mention}, you received your daily reward of {amount} coins!")
+        await ctx.send(f"{ctx.author.mention}, you received your daily reward of {amount} coins! Your new balance is: {new_balance} coins.")
     else:
         time_left = 24 - (now - datetime.fromisoformat(last_daily)).seconds // 3600
         await ctx.send(f"{ctx.author.mention}, you can claim your daily reward again in {time_left} hours.")
