@@ -2,7 +2,12 @@ import discord
 from discord.ext import commands
 import random
 import os
-Token = 'token"
+import json
+from datetime import datetime, timedelta
+
+# Replace with your bot's token
+Token = 'YOURTOKEN'  # Make sure to replace this with your actual token
+
 # Create intents
 intents = discord.Intents.default()
 intents.messages = True
@@ -19,15 +24,19 @@ BALANCES_FILE = os.path.join(os.path.dirname(__file__), "balances.json")
 def load_balances():
     if not os.path.exists(BALANCES_FILE):
         return {}
-    with open(BALANCES_FILE, 'r') as file:
-        return json.load(file)
+    try:
+        with open(BALANCES_FILE, 'r') as file:
+            return json.load(file)
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON: {e}")
+        return {}  # Return an empty dictionary if there's an error
 
 # Function to save balances to JSON file
 def save_balances(balances):
     with open(BALANCES_FILE, 'w') as file:
         json.dump(balances, file, indent=4)
 
-# Function to check and adjust balance
+# Function to adjust balance
 def adjust_balance(user_id, amount):
     balances = load_balances()
     if user_id not in balances:
@@ -49,38 +58,38 @@ async def balance(ctx):
     user_balance = balances[user_id]["balance"]
     await ctx.send(f"{ctx.author.mention}, your current balance is: {user_balance} coins.")
 
-# Daily command (every 24 hours)
+# Daily command
 @bot.command()
 async def daily(ctx):
     user_id = str(ctx.author.id)
     balances = load_balances()
 
-    daily_reward = 100
+    # Initialize user balance if not already present
     if user_id not in balances:
         balances[user_id] = {"balance": 0, "last_daily": None}
+        save_balances(balances)
 
     last_daily = balances[user_id]["last_daily"]
     now = datetime.now()
 
-    if last_daily:
-        last_daily_time = datetime.fromisoformat(last_daily)
-        if now - last_daily_time < timedelta(hours=24):
-            time_left = timedelta(hours=24) - (now - last_daily_time)
-            hours, remainder = divmod(time_left.seconds, 3600)
-            minutes, _ = divmod(remainder, 60)
-            await ctx.send(f"{ctx.author.mention}, you've already claimed your daily reward. Try again in {hours} hours and {minutes} minutes.")
-            return
-
-    # Give daily reward
-    balances[user_id]["balance"] += daily_reward
-    balances[user_id]["last_daily"] = now.isoformat()
-    save_balances(balances)
-
-    await ctx.send(f"{ctx.author.mention}, you have claimed {daily_reward} coins as your daily reward!")
+    # Check if the user can claim daily reward
+    if last_daily is None or now - datetime.fromisoformat(last_daily) >= timedelta(days=1):
+        amount = 100  # Amount to give for daily
+        adjust_balance(user_id, amount)
+        balances[user_id]["last_daily"] = now.isoformat()  # Store last_daily as ISO format string
+        save_balances(balances)
+        await ctx.send(f"{ctx.author.mention}, you received your daily reward of {amount} coins!")
+    else:
+        time_left = 24 - (now - datetime.fromisoformat(last_daily)).seconds // 3600
+        await ctx.send(f"{ctx.author.mention}, you can claim your daily reward again in {time_left} hours.")
 
 # Blackjack command with betting system
 @bot.command()
-async def blackjack(ctx, bet: int):
+async def blackjack(ctx, bet: int = None):
+    if bet is None:
+        await ctx.send(f"{ctx.author.mention}, please provide a bet amount. Usage: `$blackjack <bet>`.")
+        return
+
     user_id = str(ctx.author.id)
     balances = load_balances()
 
@@ -163,6 +172,36 @@ async def blackjack(ctx, bet: int):
         balances[user_id]["balance"] += bet  # Refund the bet in case of a tie
         save_balances(balances)
         await ctx.send(f"{ctx.author.mention}, it's a tie! Your bet has been refunded.")
+
+# Admin command to give money
+@bot.command()
+async def give(ctx, user: discord.User, amount: int):
+    admin_id = 1234567890  # Replace with your user ID
+    if ctx.author.id != admin_id:
+        await ctx.send(f"{ctx.author.mention}, you do not have permission to use this command.")
+        return
+
+    user_id = str(user.id)
+    balances = load_balances()
+    adjust_balance(user_id, amount)
+    await ctx.send(f"{ctx.author.mention}, you gave {amount} coins to {user.mention}.")
+
+# Leaderboard command
+@bot.command()
+async def leaderboard(ctx):
+    balances = load_balances()
+    sorted_leaderboard = sorted(balances.items(), key=lambda item: item[1]["balance"], reverse=True)
+
+    if len(sorted_leaderboard) == 0:
+        await ctx.send("No players found.")
+        return
+
+    leaderboard_message = "**Leaderboard**\n\n"
+    for i, (user_id, data) in enumerate(sorted_leaderboard[:10], 1):
+        user = await bot.fetch_user(user_id)
+        leaderboard_message += f"{i}. {user.name} - {data['balance']} coins\n"
+
+    await ctx.send(leaderboard_message)
 
 # Run the bot
 bot.run(Token)
