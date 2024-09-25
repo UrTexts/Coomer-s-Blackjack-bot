@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timedelta
 
 # Replace with your bot's token
-Token = 'your token'  # Replace with your actual bot token
+Token = 'yourtoken'  # Replace with your actual bot token
 
 # Create intents
 intents = discord.Intents.default()
@@ -223,6 +223,7 @@ async def privacy(ctx):
         "2. Any data collected is used solely for the purpose of providing bot services.\n"
         "3. We do not share your information with third parties."
     )
-# Run the bot
+    await ctx.send(privacy_text)
+
 
 bot.run(Token)
