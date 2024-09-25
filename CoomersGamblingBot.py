@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import random
 import os
-
+Token = 'token"
 # Create intents
 intents = discord.Intents.default()
 intents.messages = True
