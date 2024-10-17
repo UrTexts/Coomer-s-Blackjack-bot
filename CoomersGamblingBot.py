@@ -1,12 +1,12 @@
 import discord
-from discord.ext import commands
-import random
+from discord.ext import commands, tasks
 import os
 import json
+import random
 from datetime import datetime, timedelta
 
 # Replace with your bot's token
-Token = 'yourtoken'  # Replace with your actual bot token
+TOKEN = ''  # Replace with your actual bot token
 
 # Create intents
 intents = discord.Intents.default()
@@ -20,12 +20,21 @@ bot = commands.Bot(command_prefix='$', intents=intents)
 # Define the path for the balances file
 BALANCES_FILE = os.path.join(os.path.dirname(__file__), "balances.json")
 
+# Function to check or create the balances file
+def check_balances_file():
+    if not os.path.exists(BALANCES_FILE):
+        with open(BALANCES_FILE, 'w') as file:
+            json.dump({}, file)
+        print(f"Created new balances.json file at {BALANCES_FILE}")
+
 # Function to load balances from JSON file
 def load_balances():
-    if not os.path.exists(BALANCES_FILE):
+    check_balances_file()
+    try:
+        with open(BALANCES_FILE, 'r') as file:
+            return json.load(file)
+    except json.JSONDecodeError:
         return {}
-    with open(BALANCES_FILE, 'r') as file:
-        return json.load(file)
 
 # Function to save balances to JSON file
 def save_balances(balances):
@@ -35,52 +44,65 @@ def save_balances(balances):
 # Function to adjust balance
 def adjust_balance(user_id, amount):
     balances = load_balances()
+
+    # Initialize user balance if not already present
     if user_id not in balances:
-        balances[user_id] = {"balance": 0, "last_daily": None}
+        balances[user_id] = {"balance": 0, "last_reward": None}
+
     balances[user_id]["balance"] += amount
     save_balances(balances)
     return balances[user_id]["balance"]
 
-# Balance command
-@bot.command()
+# Command to check balance
+@bot.command(name='balance')
 async def balance(ctx):
     user_id = str(ctx.author.id)
     balances = load_balances()
 
     if user_id not in balances:
-        balances[user_id] = {"balance": 0, "last_daily": None}
+        balances[user_id] = {"balance": 0, "last_reward": None}
         save_balances(balances)
 
     user_balance = balances[user_id]["balance"]
     await ctx.send(f"{ctx.author.mention}, your current balance is: {user_balance} coins.")
 
-# Daily command
-@bot.command()
-async def daily(ctx):
-    user_id = str(ctx.author.id)
+# Command to manually give coins
+@bot.command(name='give')
+async def give(ctx, user: discord.User, amount: int):
+    admin_id = ____  # Replace with your user ID
+    if ctx.author.id != admin_id:
+        await ctx.send(f"{ctx.author.mention}, you do not have permission to use this command.")
+        return
+
+    user_id = str(user.id)
+    new_balance = adjust_balance(user_id, amount)
+    await ctx.send(f"{ctx.author.mention}, you gave {amount} coins to {user.mention}. Their new balance is: {new_balance} coins.")
+
+# Daily coin distribution task
+@tasks.loop(hours=12)
+async def give_daily_rewards():
     balances = load_balances()
-
-    # Initialize user balance if not already present
-    if user_id not in balances:
-        balances[user_id] = {"balance": 0, "last_daily": None}
-        save_balances(balances)
-
-    last_daily = balances[user_id]["last_daily"]
     now = datetime.now()
 
-    # Check if the user can claim daily reward
-    if last_daily is None or now - datetime.fromisoformat(last_daily) >= timedelta(days=1):
-        amount = 100  # Amount to give for daily
-        adjust_balance(user_id, amount)
-        balances[user_id]["last_daily"] = now.isoformat()  # Store last_daily as ISO format string
-        save_balances(balances)
-        await ctx.send(f"{ctx.author.mention}, you received your daily reward of {amount} coins!")
-    else:
-        time_left = 24 - (now - datetime.fromisoformat(last_daily)).seconds // 3600
-        await ctx.send(f"{ctx.author.mention}, you can claim your daily reward again in {time_left} hours.")
+    for user_id, data in balances.items():
+        last_reward = data.get("last_reward")
+
+        # If the user has never received a reward, or it's been 12+ hours
+        if last_reward is None or now - datetime.fromisoformat(last_reward) >= timedelta(hours=12):
+            balances[user_id]["balance"] += 50
+            balances[user_id]["last_reward"] = now.isoformat()
+
+    save_balances(balances)
+    print("50 coins given to all users.")
+
+# Start the background task when the bot is ready
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user.name}")
+    give_daily_rewards.start()  # Start the task
 
 # Blackjack command with betting system
-@bot.command()
+@bot.command(name='blackjack')
 async def blackjack(ctx, bet: int = None):
     if bet is None:
         await ctx.send(f"{ctx.author.mention}, please provide a bet amount. Usage: `$blackjack <bet>`.")
@@ -95,8 +117,7 @@ async def blackjack(ctx, bet: int = None):
         return
 
     # Deduct the bet amount from the user's balance
-    balances[user_id]["balance"] -= bet
-    save_balances(balances)
+    new_balance = adjust_balance(user_id, -bet)
 
     # Create a standard deck of cards
     def create_deck():
@@ -159,34 +180,17 @@ async def blackjack(ctx, bet: int = None):
     # Determine winner
     if dealer_value > 21 or player_value > dealer_value:
         winnings = bet * 2
-        balances[user_id]["balance"] += winnings
-        save_balances(balances)
-        await ctx.send(f"{ctx.author.mention}, you win! You gained {winnings} coins.")
+        new_balance = adjust_balance(user_id, winnings)  # Add winnings to user's balance
+        await ctx.send(f"{ctx.author.mention}, you win! You gained {winnings} coins. Your new balance is: {new_balance} coins.")
     elif player_value < dealer_value:
-        await ctx.send(f"{ctx.author.mention}, dealer wins! You lost {bet} coins.")
+        await ctx.send(f"{ctx.author.mention}, dealer wins! You lost {bet} coins. Your balance is now: {new_balance} coins.")
     else:
-        balances[user_id]["balance"] += bet  # Refund the bet in case of a tie
-        save_balances(balances)
-        await ctx.send(f"{ctx.author.mention}, it's a tie! Your bet has been refunded.")
-
-    # Save the updated balances after the game ends
-    save_balances(balances)
-
-# Admin command to give money
-@bot.command()
-async def give(ctx, user: discord.User, amount: int):
-    admin_id = 1234567890  # Replace with your user ID
-    if ctx.author.id != admin_id:
-        await ctx.send(f"{ctx.author.mention}, you do not have permission to use this command.")
-        return
-
-    user_id = str(user.id)
-    balances = load_balances()
-    adjust_balance(user_id, amount)
-    await ctx.send(f"{ctx.author.mention}, you gave {amount} coins to {user.mention}.")
+        # Refund the bet in case of a tie
+        new_balance = adjust_balance(user_id, bet)
+        await ctx.send(f"{ctx.author.mention}, it's a tie! Your bet has been refunded. Your balance is now: {new_balance} coins.")
 
 # Leaderboard command
-@bot.command()
+@bot.command(name='leaderboard')
 async def leaderboard(ctx):
     balances = load_balances()
     sorted_leaderboard = sorted(balances.items(), key=lambda item: item[1]["balance"], reverse=True)
@@ -203,27 +207,23 @@ async def leaderboard(ctx):
     await ctx.send(leaderboard_message)
 
 # Terms command
-@bot.command()
+@bot.command(name='terms')
 async def terms(ctx):
     terms_text = (
         "By using this bot, you agree to the following terms:\n"
-        "1. Be respectful to other users.\n"
-        "2. No spamming or flooding the chat.\n"
-        "3. Follow Discord's community guidelines.\n"
-        "4. The bot owner reserves the right to modify these terms at any time."
+        "1. Be respectful to others in the server.\n"
+        "2. Do not use the bot for spamming or misuse of commands.\n"
+        "3. The bot is not responsible for any losses incurred during games."
     )
     await ctx.send(terms_text)
 
 # Privacy command
-@bot.command()
+@bot.command(name='privacy')
 async def privacy(ctx):
     privacy_text = (
-        "Your privacy is important to us. Here are our privacy policies:\n"
-        "1. We do not collect personal information without your consent.\n"
-        "2. Any data collected is used solely for the purpose of providing bot services.\n"
-        "3. We do not share your information with third parties."
+        "Your privacy is important to us. We do not collect any personal data from users."
     )
     await ctx.send(privacy_text)
 
-
-bot.run(Token)
+# Run the bot
+bot.run(TOKEN)
