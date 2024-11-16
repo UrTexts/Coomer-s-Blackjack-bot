@@ -6,126 +6,78 @@ app = Flask(__name__)
 
 # Function to read balances and calculate win percentage from the JSON file
 def load_balances():
-    with open('balances.json', 'r') as f:
-        data = json.load(f)
-    leaderboard = []
-    for player_id, player_data in data.items():
-        # Safely get 'username', 'balance', 'games_played', and 'wins'
-        username = player_data.get("username", "Unknown Player")
-        balance = player_data.get("balance", 0)
-        games_played = player_data.get("games_played", 0)
-        wins = player_data.get("wins", 0)
-        
-        # Calculate win percentage (avoid division by zero)
-        if games_played > 0:
-            win_percentage = (wins / games_played) * 100
-        else:
-            win_percentage = 0
+    with open("balances.json", "r") as f:
+        return json.load(f)
 
-        leaderboard.append({
-            "name": username,
-            "coins": balance,
-            "win_percentage": win_percentage
+def calculate_win_percentage(games_played, wins):
+    if games_played == 0:
+        return 0
+    return (wins / games_played) * 100
+
+# Route for the leaderboard page
+@app.route('/')
+def leaderboard():
+    # Load balances from the JSON file
+    balances = load_balances()
+
+    # Create a list to store leaderboard data
+    leaderboard_data = []
+
+    # Iterate over balances and calculate win percentage
+    for user_id, data in balances.items():
+        games_played = data.get("games_played", 0)
+        wins = data.get("wins", 0)
+        win_percentage = calculate_win_percentage(games_played, wins)
+       
+        # Append the user data to leaderboard list
+        leaderboard_data.append({
+            "username": data.get("username", "Unknown"),
+            "balance": data.get("balance", 0),
+            "win_percentage": round(win_percentage, 2)
         })
-    
-    # Sort leaderboard by coins in descending order for the first leaderboard
-    leaderboard_by_coins = sorted(leaderboard, key=lambda x: x["coins"], reverse=True)
-    # Sort leaderboard by win percentage in descending order for the second leaderboard
-    leaderboard_by_win_percentage = sorted(leaderboard, key=lambda x: x["win_percentage"], reverse=True)
-    
-    return leaderboard_by_coins, leaderboard_by_win_percentage
 
-# Sample leaderboard data (now loading from balances.json)
-leaderboard_by_coins, leaderboard_by_win_percentage = load_balances()
+    # Sort leaderboard by balance (descending order)
+    leaderboard_data.sort(key=lambda x: x["balance"], reverse=True)
 
-# Your HTML template with both leaderboards
-html_content = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blackjack Leaderboards</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #2d2d2d;
-            color: white;
-            padding: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        table, th, td {
-            border: 1px solid #444;
-        }
-        th, td {
-            padding: 10px;
-            text-align: left;
-        }
-        th {
-            background-color: #444;
-        }
-        tr:nth-child(even) {
-            background-color: #3a3a3a;
-        }
-    </style>
-</head>
-<body>
-    <h1>Blackjack Leaderboards</h1>
-
-    <!-- Leaderboard by Coins -->
-    <h2>Leaderboard by Coins</h2>
-    <table>
-        <thead>
+    # HTML template for the leaderboard
+    leaderboard_html = '''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Leaderboard</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f9; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+            th { background-color: #4CAF50; color: white; }
+            tr:hover { background-color: #f1f1f1; }
+        </style>
+    </head>
+    <body>
+        <h1>Leaderboard</h1>
+        <table>
             <tr>
-                <th>Rank</th>
-                <th>Player</th>
-                <th>Coins</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for player in leaderboard_by_coins %}
-            <tr>
-                <td>{{ loop.index }}</td>
-                <td>{{ player.name }}</td>
-                <td>{{ player.coins }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <!-- Leaderboard by Win Percentage -->
-    <h2>Leaderboard by Win Percentage</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Rank</th>
-                <th>Player</th>
+                <th>Username</th>
+                <th>Balance</th>
                 <th>Win Percentage</th>
             </tr>
-        </thead>
-        <tbody>
-            {% for player in leaderboard_by_win_percentage %}
-            <tr>
-                <td>{{ loop.index }}</td>
-                <td>{{ player.name }}</td>
-                <td>{{ player.win_percentage|round(2) }}%</td>
-            </tr>
+            {% for player in leaderboard %}
+                <tr>
+                    <td>{{ player.username }}</td>
+                    <td>{{ player.balance }}</td>
+                    <td>{{ player.win_percentage }}%</td>
+                </tr>
             {% endfor %}
-        </tbody>
-    </table>
-</body>
-</html>
-"""
+        </table>
+    </body>
+    </html>
+    '''
 
-@app.route('/')
-def index():
-    leaderboard_by_coins, leaderboard_by_win_percentage = load_balances()  # Re-load the data every time the page is accessed
-    return render_template_string(html_content, leaderboard_by_coins=leaderboard_by_coins, leaderboard_by_win_percentage=leaderboard_by_win_percentage)
+    # Render the leaderboard page with the data
+    return render_template_string(leaderboard_html, leaderboard=leaderboard_data)
 
 # Run the Flask app
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000)
