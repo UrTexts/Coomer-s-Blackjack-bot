@@ -8,6 +8,6 @@ this bot also hosts a development server for leaderboards
 $blackjack <bet>
 $leaderboard
 $balance
-=============
-$terms $privacy
+$terms 
+$privacy
 
