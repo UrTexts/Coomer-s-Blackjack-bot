@@ -17,7 +17,7 @@ intents.message_content = True
 # Initialize the bot with intents
 bot = commands.Bot(command_prefix='$', intents=intents)
 
-# Define the path for the balances file
+# Path to the balances file
 BALANCES_FILE = os.path.join(os.path.dirname(__file__), "balances.json")
 
 # Function to check or create the balances file
@@ -27,7 +27,7 @@ def check_balances_file():
             json.dump({}, file)
         print(f"Created new balances.json file at {BALANCES_FILE}")
 
-# Function to load balances from JSON file
+# Function to load balances from the JSON file
 def load_balances():
     check_balances_file()
     try:
@@ -36,40 +36,74 @@ def load_balances():
     except json.JSONDecodeError:
         return {}
 
-# Function to save balances to JSON file
+# Function to save balances to the JSON file
 def save_balances(balances):
     with open(BALANCES_FILE, 'w') as file:
         json.dump(balances, file, indent=4)
 
+# Ensure a player entry exists in the balances
+def ensure_player_data(user_id, username):
+    balances = load_balances()
+    if user_id not in balances:
+        # Initialize new player data
+        balances[user_id] = {"balance": 0, "games_played": 0, "wins": 0, "last_claimed": None}
+    else:
+        # Add missing fields to existing player data
+        balances[user_id].setdefault("games_played", 0)
+        balances[user_id].setdefault("wins", 0)
+        balances[user_id].setdefault("last_claimed", None)
+    balances[user_id]["username"] = username  # Update username if it changes
+    save_balances(balances)
+
 # Function to adjust balance
 def adjust_balance(user_id, amount):
     balances = load_balances()
-
-    # Initialize user balance if not already present
-    if user_id not in balances:
-        balances[user_id] = {"balance": 0, "last_reward": None}
-
+    ensure_player_data(user_id, "Unknown")
     balances[user_id]["balance"] += amount
     save_balances(balances)
     return balances[user_id]["balance"]
+
+# Log a game and record wins and games played
+def log_game(user_id, is_winner):
+    balances = load_balances()
+    ensure_player_data(user_id, "Unknown")
+    balances[user_id]["games_played"] += 1
+    if is_winner:
+        balances[user_id]["wins"] += 1
+    save_balances(balances)
+
+# Function to give players coins every 12 hours
+@tasks.loop(hours=12)
+async def give_daily_coins():
+    balances = load_balances()
+    for user_id, data in balances.items():
+        # Skip giving coins if user has 1000 or more coins
+        if data["balance"] >= 1000:
+            continue
+
+        # Give 50 coins to users who have less than 1000 coins
+        new_balance = adjust_balance(user_id, 50)
+        
+
+# Start the coin distribution task
+@bot.event
+async def on_ready():
+    give_daily_coins.start()
+    print(f'Logged in as {bot.user}')
 
 # Command to check balance
 @bot.command(name='balance')
 async def balance(ctx):
     user_id = str(ctx.author.id)
     balances = load_balances()
-
-    if user_id not in balances:
-        balances[user_id] = {"balance": 0, "last_reward": None}
-        save_balances(balances)
-
+    ensure_player_data(user_id, ctx.author.name)
     user_balance = balances[user_id]["balance"]
     await ctx.send(f"{ctx.author.mention}, your current balance is: {user_balance} coins.")
 
 # Command to manually give coins
 @bot.command(name='give')
 async def give(ctx, user: discord.User, amount: int):
-    admin_id = ____  # Replace with your user ID
+    admin_id = ___  # Replace with your user ID
     if ctx.author.id != admin_id:
         await ctx.send(f"{ctx.author.mention}, you do not have permission to use this command.")
         return
@@ -78,30 +112,7 @@ async def give(ctx, user: discord.User, amount: int):
     new_balance = adjust_balance(user_id, amount)
     await ctx.send(f"{ctx.author.mention}, you gave {amount} coins to {user.mention}. Their new balance is: {new_balance} coins.")
 
-# Daily coin distribution task
-@tasks.loop(hours=12)
-async def give_daily_rewards():
-    balances = load_balances()
-    now = datetime.now()
-
-    for user_id, data in balances.items():
-        last_reward = data.get("last_reward")
-
-        # If the user has never received a reward, or it's been 12+ hours
-        if last_reward is None or now - datetime.fromisoformat(last_reward) >= timedelta(hours=12):
-            balances[user_id]["balance"] += 50
-            balances[user_id]["last_reward"] = now.isoformat()
-
-    save_balances(balances)
-    print("50 coins given to all users.")
-
-# Start the background task when the bot is ready
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user.name}")
-    give_daily_rewards.start()  # Start the task
-
-# Blackjack command with betting system
+# Blackjack command with logging for wins and games played
 @bot.command(name='blackjack')
 async def blackjack(ctx, bet: int = None):
     if bet is None:
@@ -165,6 +176,7 @@ async def blackjack(ctx, bet: int = None):
             await ctx.send(f"{ctx.author.mention}, your hand: {player_hand} (Value: {player_value})")
 
             if player_value > 21:
+                log_game(user_id, is_winner=False)
                 await ctx.send(f"{ctx.author.mention}, you busted! Dealer wins.")
                 return
         elif msg.content.lower() == 'stand':
@@ -181,8 +193,10 @@ async def blackjack(ctx, bet: int = None):
     if dealer_value > 21 or player_value > dealer_value:
         winnings = bet * 2
         new_balance = adjust_balance(user_id, winnings)  # Add winnings to user's balance
+        log_game(user_id, is_winner=True)
         await ctx.send(f"{ctx.author.mention}, you win! You gained {winnings} coins. Your new balance is: {new_balance} coins.")
     elif player_value < dealer_value:
+        log_game(user_id, is_winner=False)
         await ctx.send(f"{ctx.author.mention}, dealer wins! You lost {bet} coins. Your balance is now: {new_balance} coins.")
     else:
         # Refund the bet in case of a tie
@@ -192,19 +206,49 @@ async def blackjack(ctx, bet: int = None):
 # Leaderboard command
 @bot.command(name='leaderboard')
 async def leaderboard(ctx):
+    await ctx.send(
+        f"{ctx.author.mention}, please choose the type of leaderboard you want to view:\n"
+        "1. Coins (Type 'coins')\n"
+        "2. Wins (Type 'wins')\n"
+        "3. Games Played (Type 'games played')"
+    )
+
+    def check(msg):
+        return msg.author == ctx.author and msg.content.lower() in ['coins', 'wins', 'games played']
+
+    msg = await bot.wait_for('message', check=check)
+    choice = msg.content.lower()
+
+    # Load balances data
     balances = load_balances()
-    sorted_leaderboard = sorted(balances.items(), key=lambda item: item[1]["balance"], reverse=True)
 
-    if len(sorted_leaderboard) == 0:
-        await ctx.send("No players found.")
-        return
+    # Sort the data based on the chosen leaderboard type
+    if choice == 'coins':
+        sorted_balances = sorted(balances.items(), key=lambda item: item[1].get("balance", 0), reverse=True)
+        leaderboard_message = "**Coins Leaderboard**\n\n"
+        for i, (user_id, data) in enumerate(sorted_balances[:10]):
+            username = data.get("username", "Unknown")
+            balance = data.get("balance", 0)
+            leaderboard_message += f"{i+1}. {username} - {balance} coins\n"
 
-    leaderboard_message = "**Leaderboard**\n\n"
-    for i, (user_id, data) in enumerate(sorted_leaderboard[:10], 1):
-        user = await bot.fetch_user(user_id)
-        leaderboard_message += f"{i}. {user.name} - {data['balance']} coin(s)\n"
+    elif choice == 'wins':
+        sorted_balances = sorted(balances.items(), key=lambda item: item[1].get("wins", 0), reverse=True)
+        leaderboard_message = "**Wins Leaderboard**\n\n"
+        for i, (user_id, data) in enumerate(sorted_balances[:10]):
+            username = data.get("username", "Unknown")
+            wins = data.get("wins", 0)
+            leaderboard_message += f"{i+1}. {username} - Wins: {wins}\n"
+
+    elif choice == 'games played':
+        sorted_balances = sorted(balances.items(), key=lambda item: item[1].get("games_played", 0), reverse=True)
+        leaderboard_message = "**Games Played Leaderboard**\n\n"
+        for i, (user_id, data) in enumerate(sorted_balances[:10]):
+            username = data.get("username", "Unknown")
+            games_played = data.get("games_played", 0)
+            leaderboard_message += f"{i+1}. {username} - Games Played: {games_played}\n"
 
     await ctx.send(leaderboard_message)
+
 
 # Terms command
 @bot.command(name='terms')
