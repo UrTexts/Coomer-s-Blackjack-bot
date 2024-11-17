@@ -206,49 +206,19 @@ async def blackjack(ctx, bet: int = None):
 # Leaderboard command
 @bot.command(name='leaderboard')
 async def leaderboard(ctx):
-    await ctx.send(
-        f"{ctx.author.mention}, please choose the type of leaderboard you want to view:\n"
-        "1. Coins (Type 'coins')\n"
-        "2. Wins (Type 'wins')\n"
-        "3. Games Played (Type 'games played')"
-    )
-
-    def check(msg):
-        return msg.author == ctx.author and msg.content.lower() in ['coins', 'wins', 'games played']
-
-    msg = await bot.wait_for('message', check=check)
-    choice = msg.content.lower()
-
-    # Load balances data
     balances = load_balances()
+    sorted_leaderboard = sorted(balances.items(), key=lambda item: item[1]["balance"], reverse=True)
 
-    # Sort the data based on the chosen leaderboard type
-    if choice == 'coins':
-        sorted_balances = sorted(balances.items(), key=lambda item: item[1].get("balance", 0), reverse=True)
-        leaderboard_message = "**Coins Leaderboard**\n\n"
-        for i, (user_id, data) in enumerate(sorted_balances[:10]):
-            username = data.get("username", "Unknown")
-            balance = data.get("balance", 0)
-            leaderboard_message += f"{i+1}. {username} - {balance} coins\n"
+    if len(sorted_leaderboard) == 0:
+        await ctx.send("No players found.")
+        return
 
-    elif choice == 'wins':
-        sorted_balances = sorted(balances.items(), key=lambda item: item[1].get("wins", 0), reverse=True)
-        leaderboard_message = "**Wins Leaderboard**\n\n"
-        for i, (user_id, data) in enumerate(sorted_balances[:10]):
-            username = data.get("username", "Unknown")
-            wins = data.get("wins", 0)
-            leaderboard_message += f"{i+1}. {username} - Wins: {wins}\n"
-
-    elif choice == 'games played':
-        sorted_balances = sorted(balances.items(), key=lambda item: item[1].get("games_played", 0), reverse=True)
-        leaderboard_message = "**Games Played Leaderboard**\n\n"
-        for i, (user_id, data) in enumerate(sorted_balances[:10]):
-            username = data.get("username", "Unknown")
-            games_played = data.get("games_played", 0)
-            leaderboard_message += f"{i+1}. {username} - Games Played: {games_played}\n"
+    leaderboard_message = "**Leaderboard**\n\n"
+    for i, (user_id, data) in enumerate(sorted_leaderboard[:10], 1):
+        user = await bot.fetch_user(user_id)
+        leaderboard_message += f"{i}. {user.name} - {data['balance']} coin(s)\n"
 
     await ctx.send(leaderboard_message)
-
 
 # Terms command
 @bot.command(name='terms')
