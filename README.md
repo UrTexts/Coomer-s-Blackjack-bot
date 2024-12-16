@@ -9,25 +9,25 @@ Coomer's Blackjack Bot is a fun and interactive Discord bot designed for gamblin
     Virtual Economy: Players can earn and spend virtual coins within the game.
 
 # Commands
-$give
+`$give`
 
-    Usage: $give <user> <amount>
-    Description: Give a specified amount of coins to another user. (Only available to the bot owner)
+ Usage: $give <user> <amount>
+ Description: Give a specified amount of coins to another user. (Only available to the bot owner)
 
-$balance
+`$balance`
 
-    Usage: $balance
-    Description: View your current coin balance.
+ Usage: $balance
+ Description: View your current coin balance.
 
-$blackjack <amount>
+`$blackjack <amount>`
 
-    Usage: $bet <amount>
-    Description: Place a bet to start a game of blackjack. The amount must be within your current balance.
+Usage: $bet <amount>
+Description: Place a bet to start a game of blackjack. The amount must be within your current balance.
 
-$leaderboard
+`$leaderboard`
 
-    Usage: $leaderboard
-    Description: View the leaderboard of top players based on wins or total coins.
+ Usage: $leaderboard
+ Description: View the leaderboard of top players based on wins or total coins.
 
 # Installation
 Requirements:
@@ -38,9 +38,9 @@ Requirements:
 
 Steps to Install:
 
-    Clone the repository:
+ Clone the repository:
 
-git clone https://github.com/UrTexts/Coomer-s-Blackjack-bot.git
+`git clone https://github.com/UrTexts/Coomer-s-Blackjack-bot.git`
 
 # Install dependencies:
 use pip to install all the impots.
@@ -51,6 +51,6 @@ TOKEN = 'your_discord_bot_token_here'
 
 Run the bot:
 
-python CoomersGamblingBot.py
+`python CoomersGamblingBot.py`
 
 Invite your bot to a server with appropriate permissions (bot must have permission to send messages and read message history).
